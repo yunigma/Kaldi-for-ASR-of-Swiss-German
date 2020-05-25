@@ -43,11 +43,11 @@ The Kaldi recipe egs/wsj/s5 (commit 8cc5c8b32a49f8d963702c6be681dcf5a55eeb2e) wa
 
 # Models (trained and evaluated on the second release of the ArchiMob corpus):
 
- **model**  | **WER,%** | **FlexWER,%** | **data: n of utterances** | **transcription** | **LM** |
+ **model**  | **WER,%** | **FlexWER,%** | **n of training utterances** | **transcription** | **LM** |
 | -------- | -------- | -------- | -------- | -------- | -------- |
-| NNET-DISC-2k10k | 55.18 | 32.59 | 43 interviews| dialectal | 3-gram |
-| NNET-DISC-4k40k | 54.39 | 32.09 | 43 interviews | dialectal | 3-gram |
-| TDNN-iVector-4k40k | 42.38 | 21.53 | 43 interviews | dialectal | 3-gram |
+| NNET-DISC-2k10k | 55.18 | 32.59 | 67’693 | dialectal | 3-gram |
+| NNET-DISC-4k40k | 54.39 | 32.09 | 67’693 | dialectal | 3-gram |
+| TDNN-iVector-4k40k | 42.38 | 21.53 | 67’693 | dialectal | 3-gram |
 | | | | | | |
 | | | | | | |
 
@@ -81,6 +81,7 @@ Running example with approximate cmds:
       -i $data/archimob_r2/xml_corrected/*.xml \
       -f xml \
       -o $data/processed/archimob.csv
+    ```
 
     1.2. rename chunked wavs **Note**: This only needs to be done once!
 
