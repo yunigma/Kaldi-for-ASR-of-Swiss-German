@@ -1,0 +1,10 @@
+SIL SIL_B SIL_E SIL_I SIL_S SPN SPN_B SPN_E SPN_I SPN_S NSN NSN_B NSN_E NSN_I NSN_S
+*_B a_B a1_B ai_B au_B b_B c_B ch_B d_B e_B ei_B f_B g_B gg_B h_B i_B j_B k_B l_B m_B n_B ng_B o_B p_B pf_B ph_B r_B s_B sch_B t_B tcsh_B th_B u_B v_B w_B z_B à_B á_B ã_B ä_B ä1_B äi_B äu_B è_B é_B ì_B í_B ò_B ò1_B ó_B õ_B ö_B ö1_B ù_B ú_B ü_B ĩ_B ǜ_B ẽ_B 
+*_E a_E a1_E ai_E au_E b_E c_E ch_E d_E e_E ei_E f_E g_E gg_E h_E i_E j_E k_E l_E m_E n_E ng_E o_E p_E pf_E ph_E r_E s_E sch_E t_E tcsh_E th_E u_E v_E w_E z_E à_E á_E ã_E ä_E ä1_E äi_E äu_E è_E é_E ì_E í_E ò_E ò1_E ó_E õ_E ö_E ö1_E ù_E ú_E ü_E ĩ_E ǜ_E ẽ_E 
+*_I a_I a1_I ai_I au_I b_I c_I ch_I d_I e_I ei_I f_I g_I gg_I h_I i_I j_I k_I l_I m_I n_I ng_I o_I p_I pf_I ph_I r_I s_I sch_I t_I tcsh_I th_I u_I v_I w_I z_I à_I á_I ã_I ä_I ä1_I äi_I äu_I è_I é_I ì_I í_I ò_I ò1_I ó_I õ_I ö_I ö1_I ù_I ú_I ü_I ĩ_I ǜ_I ẽ_I 
+*_S a_S a1_S ai_S au_S b_S c_S ch_S d_S e_S ei_S f_S g_S gg_S h_S i_S j_S k_S l_S m_S n_S ng_S o_S p_S pf_S ph_S r_S s_S sch_S t_S tcsh_S th_S u_S v_S w_S z_S à_S á_S ã_S ä_S ä1_S äi_S äu_S è_S é_S ì_S í_S ò_S ò1_S ó_S õ_S ö_S ö1_S ù_S ú_S ü_S ĩ_S ǜ_S ẽ_S 
+SIL SPN NSN 
+SIL_B SPN_B NSN_B 
+SIL_E SPN_E NSN_E 
+SIL_I SPN_I NSN_I 
+SIL_S SPN_S NSN_S 

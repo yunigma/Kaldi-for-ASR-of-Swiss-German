@@ -1,0 +1,588 @@
+% Specifies the type of document you have.
+\documentclass[11pt,a4paper,titlepage,twoside]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[english]{isodate}
+\usepackage[parfill]{parskip}
+%%\usepackage{minted}
+\usepackage{minibox}
+\usepackage{listings}
+\usepackage{emptypage}
+
+\pagenumbering{Roman}
+%% \listoffigures
+%% \newpage
+%% \listoftables
+%% \newpage
+
+\author{Spitch AG}
+\title{Kaldi-
+based framework to train and evaluate acoustic models with the Archimob corpus \\ User Manual}
+
+% Start of the document.
+\begin{document}
+
+\maketitle
+
+\cleardoublepage
+
+\tableofcontents
+
+\cleardoublepage
+
+%\newpage
+\pagenumbering{arabic}
+
+\section{Introduction}
+\label{sec:introduction}
+
+This document is the user manual for the basic ASR framework developed by Spitch~AG for the Corpus Lab of the University of Zurich, which includes the functionality to:
+
+\begin{itemize}
+\item Train neural network acoustic models with the Archimob annotated corpus.
+\item Compile the lingware to do decoding with Kaldi acoustic models and certain vocabulary and language model.
+\item Evaluate the quality of the acoustic models and the lingware by decoding a set of wavefiles with annotated references.
+\end{itemize}
+
+\section{Design guidelines}
+\label{sec:design-guidelines}
+
+The whole framework was designed with the target of providing a clear separation between the Archimob specific input, and the publicly available Kaldi scripts. Even though this was a strong initial constraint for the development, it should simplify the addition of future updates of the aforementioned open source tool.
+
+\section{User guidelines}
+\label{sec:user-guidelines}
+
+\subsection{Quick overview}
+\label{sec:quick-overview}
+
+The framework consists of four parts:
+
+\begin{itemize}
+\item Data preparation: adaptation of the original Archimob files to a more appropriate format for automatic speech recognition.
+\item Acoustic model training: sequential training of acoustic models, from GMM (Gaussian Mixture Models) to nnet (neural network).
+\item Lingware compilation: reorganization of the lexicon, the language model, and part of the acoustic models in a single file more suitable for decoding.
+\item Models evaluation: decoding and comparison of the resulting hypotheses with some references to get an estimation of the quality of the acoustic models and lingware generated in the previous stages.
+\end{itemize}
+
+Table~\ref{tab:framework-overview} collects a summary of the input and output information, plus the main scripts for each stage.
+
+\begin{table}[htb!]
+  \scriptsize
+  \centering
+  \begin{tabular}{|l|p{3.7cm}|p{2.3cm}|p{3cm}|}
+    \hline
+    \textbf{Step} & \textbf{Input} & \textbf{Output} & \textbf{Scripts} \\
+    \hline \hline
+    Data preparation & Archimob wavefiles, {Exma-ralda} files & Archimob csv file, chunked wavefiles & extract\_audio.sh, process\_exmaralda\_xml.py \\
+    \hline
+    AM training & Archimob csv file, chunked wavefiles & Acoustic models & train\_AM.sh \\
+    \hline
+    Lingware & Acoustic models, vocabulary, language model & HCLG & compile\_lingware.sh, simple\_lm.sh  \\
+    \hline
+    Evaluation & Acoustic models, references, wavefiles, HCLC & WER & decode\_nnet.sh \\
+    \hline
+  \end{tabular}
+  \caption{Framework overview}
+  \label{tab:framework-overview}
+\end{table}
+
+\subsection{Detailed process flow}
+\label{sec:detailed-process-flow}
+
+All the scripts mentioned in this section should be called from the same directory where they are located. See Section~\ref{sec:running-scripts} for further explanation.
+
+\subsubsection{Data preparation}
+\label{sec:data-preparation}
+
+The input to this stage is the Archimob videos and the corresponding Exmaralda files with the annotations, as already owned by the Corpus Lab. The goal is to divide the long recordings into smaller chunks more suitable for alignment during acoustic modeling.
+
+\begin{enumerate}
+\item The wavefiles are extracted from the Archimob videos, with the script extract\_audio.sh~\footnote{Note that, by default, this script downsamples the waveforms to $8~KHz$. If you want to use a different sampling frequency, besides changing this script, the feature extraction configuration file from Kaldi (\textit{conf/mfcc.conf}) should be modified accordingly}. This script takes all the files with extension $.mp4$ under an input directory, and writes the audio streams to an output directory preserving the basename and changing the extension to $.wav$.
+
+This is an example of how to extract the audio files:
+
+\begin{center}
+  \scriptsize
+  \minibox[frame]{\lstinline+$archimob/extract\_audio.sh input\_videos full\_wav+}
+\end{center}
+
+where:
+
+\begin{itemize}
+\item input\_videos: folder with the Archimob videos.
+\item full\_wav: output folder for the audio files.
+\end{itemize}
+
+\item The script process\_exmaralda\_xml.py is used to compile into a single csv file all the ASR relevant information from the original Exmaralda files. Short speech segments are created from the Exmaralda turns, and the corresponding wave chunks are extracted using the timestamps information.
+
+The call to process\_exmaralda\_xml.py is like this:
+
+\begin{center}
+  \scriptsize
+  \minibox[frame]{\lstinline+$ archimob/process\_exmaralda\_xml.py -i trans/*.exb -w full\_wav -o example.csv+ \\ \hspace{4cm} \lstinline+-O chunk\_wav+}
+\end{center}
+
+where:
+
+\begin{enumerate}
+\item trans/*.exb: list of Exmaralda files.
+\item full\_wav: folder with the Archimob audio files (as generated by extract\_audio.sh).
+\item example.csv: output csv file. Table~\ref{tab:example-csv} shows an example.
+\item chunk\_wav: output folder for the chunked audio files.
+\end{enumerate}
+
+\end{enumerate}
+
+Note that it is important to ensure that there is no offset among the timestamps in the Exmaralda file and the video, as this would imply desynchronization in the chunked wavefiles and transcriptions. This can be easily checked by listening to some of the chunked wavefiles and comparing the content with the chunked transcription in the csv file.
+
+\begin{table}[htb!]
+  \scriptsize
+  \centering
+  \begin{tabular}{|l|}
+    \hline
+      \textbf{utt\_id,transcription,speaker\_id,duration,speech-in-speech,no-relevant-speech} \\
+      1008-0001,"/ (?)",1008\_I,6.24,0,0 \\
+      1008-0002,"/ lauft /",1008\_I,4.10,1,0 \\
+      1008-0003,"mich würd interessiere /",1008\_I,2.00,0,0 \\
+      1008-0004,"wie si iri jugendzit /",1008\_I,2.11,0,0 \\
+      1008-0005,"als iischtiig /",1008\_I,1.65,0,0 \\
+      1008-0006,"ää\$ erläbt hend /",1008\_I,3.73,0,0 \\
+      \ldots \\
+      \hline
+  \end{tabular}
+  \caption{Example of Archimob csv file}
+  \label{tab:example-csv}
+\end{table}
+
+\subsubsection{Acoustic model training}
+\label{sec:acoustic-model-training}
+
+Acoustic modeling with the default configuration is run with a single command:
+
+\begin{center}
+  \scriptsize
+  \minibox[frame]{\lstinline+$ train\_AM.sh --num-jobs 80 example.csv chunk\_wav out\_AM+}
+\end{center}
+
+where:
+
+\begin{itemize}
+\item --num-jobs: number of jobs, for parallel processing. In the current example it is assumed that 80 virtual CPU's are available (see Section~\ref{sec:configuration}).
+\item example.csv: input csv file, as generated with process\_exmaralda\_xml.py.
+\item chunk\_wav: folder with the chunked wavefiles, as generated with process\_exmaralda\_xml.py.
+\item out\_AM: output folder for the script.
+\end{itemize}
+
+The final acoustic models trained with this script will be located under the folder out\_AM/models/discriminative/nnet\_disc.
+
+\subsubsection{Lingware compilation}
+\label{sec:lingware-compilation}
+
+The lingware for decoding is generated with this command:
+
+\begin{center}
+  \scriptsize
+  \minibox[frame]{\lstinline+$ compile\_lingware.sh out\_AM/initial\_data/ling vocabulary.txt language\_model.arpa+ \\
+    \hspace{2.85cm} \lstinline+out\_AM/models/discriminative/nnet\_disc out\_ling+}
+\end{center}
+
+where:
+
+\begin{itemize}
+\item out\_AM/initial\_data/ling: intermediate folder from the acoustic modeling stage, with the information of the phones used for training~\footnote{It is better to take this information from training directly than regenerating it automatically from the decoding data, since small vocabularies might not contain all the phoneset. See sections~\ref{sec:lexicon-generation} and~\ref{sec:coherence-lexica} for more details.}.
+\item vocabulary.txt: input file with the vocabulary to be recognized by the lingware. See Table~\ref{tab:example-vocabulary} for an example. Note that it should consist only of regular words (this is, silence and noise symbols should be excluded from it).
+\item language\_model.arpa: input language model, in arpa format (see Table~\ref{tab:example-lm} for an example). Note that no functionality is provided in the current framework to build this model, since its design is heavily dependent on the application domain.
+\item out\_AM/models/discriminative/nnet\_disc: intermediate folder from the acoustic modeling stage, with the discriminative nnet acoustic models. The basic nnet2 acoustic models could be used instead~\footnote{In general, the closer the training data to the application domain (i.e, where the models will be used), the better the discriminative models perform. However, if the application domain is very different to the training data, the nnet2 models might be preferable.}.
+\item out\_ling: name of the output folder.
+\end{itemize}
+
+\begin{table}[htb!]
+  \scriptsize
+  \centering
+  \begin{tabular}{|l|}
+    \hline
+    a \\
+    aa \\
+    aaa \\
+    aab \\
+    aabaue \\
+    aabauen \\
+    aabauschlacht \\
+    aaben \\
+    \ldots \\
+    \hline
+  \end{tabular}
+  \caption{Example of vocabulary for lingware compilation}
+  \label{tab:example-vocabulary}
+\end{table}
+
+\begin{table}[htb!]
+  \scriptsize
+  \centering
+  \begin{tabular}{|l|}
+    \hline
+    \textbackslash{}data\textbackslash{} \\
+    ngram 1=3938 \\
+    ngram 2=12397 \\
+    \\
+    \textbackslash{}1-grams: \\
+    -1.735163	\textless{}\textbackslash{}s\textgreater{} \\
+    -99	\textless{}s\textgreater{}	-0.451290 \\
+    -2.620098	a	-0.280351 \\
+    -3.445199	aa	-0.082895 \\
+    \ldots \\
+    \hline
+  \end{tabular}
+  \caption{Example of language model for lingware compilation}
+  \label{tab:example-lm}
+\end{table}
+
+\subsubsection{Evaluation}
+\label{sec:evaluation}
+
+This is an example of how to evaluate the quality of some previously trained acoustic models and lingware:
+
+\begin{center}
+  \scriptsize
+  \minibox[frame]{\lstinline+$ decode\_nnet.sh --num-jobs 80 references wav\_test out\_AM/models/discriminative/nnet\_disc+ \\
+    \hspace{2.25cm} \lstinline+  out\_ling out\_decode+}
+\end{center}
+
+where:
+
+\begin{itemize}
+\item --num-jobs: number of jobs, for parallel processing. In the current example it is assumed that 80 virtual CPU's are available (see Section~\ref{sec:configuration}).
+\item references: file with the utterance ids of the wavefiles to be decoded, and the corresponding annotation references~\footnote{This format can be obtained by using the script \textit{./archimob/process\_exmaralda\_xml.py} on the test Exmaralda files, and processing the output csv file with \textit{./archimob/process\_archimob\_csv.py} and the input parameters \textbf{-p} and \textbf{-u}.}. Table~\ref{tab:references-example} shows an example.
+  \begin{table}[htb!]
+    \scriptsize
+    \centering
+    \begin{tabular}{|l l|}
+      \hline
+      1209-0402	& s het gschäftslüüt drunder ghaa und het äu anderi drunder ghaa \\
+      1209-0403	& so simpatisante \\
+      1209-0405	& jjjòò  \\
+      1209-0406	& me het scho devoo gredt \\
+      1209-0407	& und me aber me s het äifach s gfüül ghaa aso \\
+      1209-0409	& nìd esoo nooch a de gränze wie gwüssi \\
+      1209-0410	& gränzkantoone \\
+      \ldots & \ldots \\
+      \hline
+    \end{tabular}
+    \caption{Example of references file for decoding}
+    \label{tab:references-example}
+  \end{table}
+
+\item wav\_test: folder with the test wavefiles. Note that the filenames must match the utterance ids in the references file~\footnote{In this example, the wavefile corresponding to utterance id $1209-0402$ would be $wav\_test/1209-0402.wav$.}.
+
+\item out\_AM/models/discriminative/nnet\_disc: folder with the acoustic models. Note that it must be the same one used to compile the lingware~\footnote{This statement is just a simplification: what is actually needed is that the GMM tree and transition model parts of the acoustic models used for lingware compilation and decoding are the same.}.
+
+\item out\_ling: folder with the lingware. It must have the file $HCLG.fst$ under it.
+
+\item out\_decode: folder for the output files.
+
+\end{itemize}
+
+Once the evaluation is done, the average performance and other relevant information can be checked in the output folder:
+
+\begin{itemize}
+  \item \textit{best\_wer}: file with the best \textit{Word Error Rate}. For example:
+    \begin{center}
+      \scriptsize
+      \minibox[frame]{\lstinline+WER 39.07 [ 9270 / 23728, 1146 ins, 4820 del, 3304 sub ]+ \\ \lstinline+ out/models/discriminative/nnet\_disc/decode/wer\_17\_0.0+}
+    \end{center}
+  \item \textit{wer\_details}: directory with the optimization parameters that led to that result (see Section~\ref{sec:decoding-optimization}), and an analysis of the errors per utterance, speaker, and word:
+    \begin{itemize}
+    \item \textit{lmwt}: optimal language model weight.
+    \item \textit{wip} optimal word insertion penalty.
+    \item \textit{per\_utt}: it contains, for every utterance, the reference, the hypothesis, and the number of correct words, insertions, substitutions, and deletions.
+    \item \textit{ops}:  for every word, number of times it is correctly recognized, substituted, inserted, or deleted.
+    \end{itemize}
+
+\end{itemize}
+
+\subsection{Gory details}
+\label{sec:gory-details}
+
+\subsubsection{Running the scripts}
+\label{sec:running-scripts}
+
+The scripts \textit{train\_AM.sh}, \textit{compile\_lingware.sh}, and \textit{decode\_nnet.sh} must always be called from the same directory where they are located. The reason for this strong restriction is that the underlying Kaldi scripts that are called by them also have this assumption, and making the complete flow location independent would have implied modifications in all the involved scripts, which would have made it more complicated to add features from other Kaldi recipes in the future.
+
+\subsubsection{Lexicon generation}
+\label{sec:lexicon-generation}
+
+Pronunciation dictionaries are traditionally generated as a second stage after having designed the phoneset for a target language. In the current framework, however, the process is exactly the opposite: the phoneset is just extracted from the lexicon. The justification for this decision is that Archimob is transcribed according to the Dieth rules, which already follow reasonably close the phonetic realization of each word, as uttered by a certain person in a specific moment. Therefore, pronunciations can be generated by simple concatenation of the word graphemes, with the only exception of some grapheme clusters that represent a single phoneme. Table~\ref{tab:grapheme-clusters} shows the first lines of the provided grapheme clusters file, \textit{manual/clusters.txt}, plus some pronunciation examples. It contains the sequence of graphemes on the first column, and the symbol or sequence of symbols it must be mapped to~\footnote{If a grapheme cluster can be mapped to several symbols (for example, depending on the context), they must be separated by a comma.} in the second one.
+
+\begin{table}[htb!]
+  \scriptsize
+  \centering
+  \begin{tabular}{|l|l|p{4.4cm}|}
+    \hline
+    \textbf{Cluster} & \textbf{Symbol} & \textbf{Example} \\ \hline \hline
+    ch & ch & aabach $\rightarrow$ \textit{/ a b a ch /}  \\ \hline
+    sch & sch & aarisch $\rightarrow$ \textit{/ a r i sch /} \\ \hline
+    tsch & tcsh, z ch & bretschter $\rightarrow$  \textit{/ b r e tsch t e r /}, \textit{/ b r e z ch t e r /} \\ \hline
+    pf & pf & aapflanze $\rightarrow$ \textit{/ a pf l a n z e /} \\ \hline
+    ng & ng & afangen $\rightarrow$ \textit{/ a f a ng e n /} \\ \hline
+    ph & ph & biiphalte $\rightarrow$ \textit{/ b i ph a l t e/}\\ \hline
+    th & th & raathuus $\rightarrow$ \textit{/ r a th u s /} \\ \hline
+    ts & z & schtaats $\rightarrow$ \textit{/ sch t a z /}\\ \hline
+    tz & z & traditzioon $\rightarrow$ \textit{/ t r a d i z i o n /}\\ \hline
+    gg & gg & wäggis $\rightarrow$ \textit{/ w ä gg i s /}\\ \hline
+    \ldots & \ldots & \ldots \\
+    \hline
+  \end{tabular}
+  \caption{Excerpt from the grapheme clusters file}
+  \label{tab:grapheme-clusters}
+\end{table}
+
+The script $archimob/create\_simple\_lexicon.py$ is used to generate the lexicon in a very naive way: most of the phonetic knowledge lies on the initial Dieth pronunciations and the grapheme clusters. The script only maps clusters of graphemes to the symbols defined in the clusters file, and all the other graphemes to themselves, as shown in the examples in Table~\ref{tab:grapheme-clusters}.
+
+\subsubsection{Coherence between the training and decoding lexica}
+\label{sec:coherence-lexica}
+
+The training and decoding lexica must be coherent, in the sense that all the phones needed for decoding must also appear in the training data. If this is not the case, the lingware compilation process described in section~\ref{sec:lingware-compilation} will crash, as a result of not being able to assign any acoustic model to the new phones. If something like this happens, it is recommended to do a pre-processing of the decoding vocabulary to map unseen phones to the ones covered during training.
+
+Phoneset coherence should not be a problem in most practical cases, as far as a reasonable amount of data is used for training. Note, however, that a strong weakness of the simple lexicon generation approach described above is that any misspelling in the vocabulary might also end up generating a new entry in the phoneset~\footnote{For example, if the word ``öisi'' is mistyped as ``öiçi'', the grapheme \textbf{ç} would automatically be added to the phoneset with the symbol \textit{ç}.}. Although this would not be a critical issue for acoustic model training, it could make lingware compilation crash if the typo is in the decoding vocabulary.
+
+\subsubsection{Different acoustic models}
+\label{sec:different-am}
+
+During the training process not only a set of acoustic models is trained, but a sequence of them that are supposed to improve the performance of the previous ones:
+
+\begin{enumerate}
+\item \textbf{GMM mono}: Gaussian Mixture models for monophones (v.gr., \textit{/~a~/}) trained with maximum likelihood.
+\item \textbf{GMM tri}: Gaussian Mixture Models for basic triphones (v.gr., \textit{/~p-a+t~/}), trained with maximum likelihood.
+\item \textbf{GMM tri + lda}: Gaussian Mixture Models for triphones, trained with maximum likelihood, but with an initial kind of LDA transformation on the acoustic features.
+\item \textbf{GMM tri + lda + MMI}: Gaussian Mixture Models for triphones, with the LDA transformation, and trained discriminatively.
+\item \textbf{NNET}: p-norm neural network model, trained with maximum likelihood.
+\item \textbf{NNET-DISC}: the same neural network from NNET, but trained with a discriminative criterion.
+\end{enumerate}
+
+Table~\ref{tab:model-directories} contains the acoustic model names and the corresponding directories, assuming that the output folder in the call to $train\_AM.sh$ was $out\_AM$.
+
+\begin{table}[htb!]
+  \scriptsize
+  \centering
+  \begin{tabular}{|l|l|}
+    \hline
+    \textbf{Model name} & \textbf{Directory} \\ \hline \hline
+    GMM mono & out\_AM/models/mono \\ \hline
+    GMM tri & out\_AM/models/tri \\ \hline
+    GMM tri + lda & out\_AM/models/tri\_lda \\ \hline
+    GMM tri + lda + MMI & out\_AM/models/tri\_mmi \\ \hline
+    NNET & out\_AM/models/nnet \\ \hline
+    NNET DISC & out\_AM/models/discriminative/nnet\_disc \\ \hline
+  \end{tabular}
+  \caption{Acoustic models directories}
+  \label{tab:model-directories}
+\end{table}
+
+\subsubsection{Decoding optimization}
+\label{sec:decoding-optimization}
+
+Decoding is performed in Kaldi in two steps:
+
+\begin{enumerate}
+\item A lattice of hypotheses paths is generated~\footnote{See the call to \textit{nnet-latgen-faster}, in \textit{decode\_nnet2.sh}.}.
+\item The best hypothesis is chosen~\footnote{See \textit{uzh/score.sh}.}, considering several combinations of two factors:
+  \begin{itemize}
+  \item Language model weight: multiplier for the language model probabilities of each path in the lattice. This parameter helps to balance out the relative relevance of the acoustic and language models.
+  \item Word insertion penalty: fixed penalty added to each path every time a new word is recognized. Positive insertion penalties will favor paths in the lattice with few words, while negative ones will encourage paths with many words.
+  \end{itemize}
+\end{enumerate} 
+
+The decoding results will be the ones corresponding to the language model weight and word insertion penalty that minimize the global word error rate in the complete testset. Note that this corresponds rather to a classical ``development'' stage, and not to a pure test one. To evaluate the quality of the system, which includes the acoustic models, the lingware, and the decoder configuration, the language model weight and the word insertion penalty should be fixed to the optimal values obtained during development.
+
+\subsubsection{NFS issues}
+\label{sec:nfs-issues}
+
+Some stages of the implementation imply heavy I/O traffic on the shared drive, with many parallel processes writing on it and reading from the same locations. As a result, it is possible that simple operations like copying a file fail with the message ``Resource temporarily unavailable''. If this happens, it means that either the hard drive is too slow, or that NFS has to be reconfigured to cope with these circumstances.
+
+\section{Configuration}
+\label{sec:configuration}
+
+\subsection{Initial setup}
+\label{sec:initial-setup}
+
+\begin{itemize}
+\item The environment variable \textbf{KALDI\_ROOT} in \textit{scripts/path.sh} should be set to the path where Kaldi is installed (v.gr., \textit{/home/ubuntu/kaldi}).
+\item Configure the \textbf{smp} parallel environment, if the experiment is going to be run on a cluster of servers~\footnote{This can be easily done in Sun Grid Engine with the call \textit{qconf -ap smp}, and adding the total number of CPU's available in the cluster to the field \textbf{pe\_slots}.}.
+\item The tool to run parallel tasks must be specified in \textit{scripts/cmd.sh}:
+  \begin{itemize}
+  \item \textit{uzh/run.pl}: used when parallelization is done in the local machine (for example, for debugging purposes).
+  \item \textit{uzh/queue.pl}: parallelization in a cluster, with Sun Grid Engine as task scheduler.
+  \item \textit{uzh/slurm.pl}: parallelization in a cluster, with Slurm.
+  \end{itemize}
+\end{itemize}
+
+\subsection{Training}
+\label{sec:training}
+
+All the following variables are grouped in the ``Configuration'' section at the header of each script.
+
+\begin{itemize}
+
+\item \textid{train\_AM.sh}:
+  \begin{itemize}
+  \item num\_jobs: number of processes for parallelization. Set it to the minimum of the number of virtual CPU's in your cluster and the number of speakers in the training data.
+  \item use\_gpu: ``true'' if your cluster includes machines with GPU. Otherwise, ``false''.
+  \item num\_senones: target number of models for GMM (and, hence, also the number of outputs in the neural network). Each triphone model (v.gr., \textbf{/~x-p+y/}, where \textbf{p} is the central phone, and \textbf{x} and \textbf{y} are the left and right context, respectively) is split into a subset of models (senones) according to acoustic similarity.
+  \item num\_gaussians: total number of Gaussians to distribute along the senones.
+  \end{itemize}
+
+\item \textit{run\_5d.sh}~\footnote{For further reference, see ``Improving deep neural network acoustic models using generalized maxout networks'': http://www.danielpovey.com/files/2014\_icassp\_dnn.pdf.}:
+
+  \begin{itemize}
+  \item use\_gpu: default value for the GPU decision. It is overwritten by train\_AM.sh.
+  \item num\_jobs\_nnet: number of parallel processes for neural network training. It should be set to the number of GPU's in the cluster of servers, but also taking into account that in this recipe this number is also closely related to the learning rate, and changes in it might also affect the performance of the system. Values between five and seven are suitable. 
+  \item mix\_up: dimension to which the output layer of the neural network is increased during training.
+  \item initial\_learning\_rate: initial value for the adaptive learning rate.
+  \item final\_learning\_rate: final value for the adaptive learning rate.
+  \item num\_hidden\_layers: number of hidden layers for the neural network.
+  \item pnorm\_input\_dim: number of neurons at the input of each p--norm component.
+  \item pnorm\_output\_dim: number of neurons at the output of each p--norm component (for dimension reduction).
+
+  \end{itemize}
+
+\end{itemize}
+
+\subsection{Decoding}
+\label{sec:decoding}
+
+\begin{itemize}
+\item \textid{decode\_nnet.sh}:
+  \begin{itemize}
+  \item num\_jobs: number of processes for parallel decoding. Set it to the number of virtual CPU's in the cluster.
+  \end{itemize}
+\end{itemize}
+
+\section{Requirements}
+\label{sec:requirements}
+
+\subsection{Software}
+\label{sec:software}
+
+\begin{itemize}
+\item Operating system: Ubuntu 14 / 16 LTS. It should also work in RedHat / Centos~7, but it was not tested.
+\item Kaldi~\footnote{https://github.com/kaldi-asr/kaldi, commit 8cc5c8b32a49f8d963702c6be681dcf5a55eeb2e}.
+\item ffmpeg~\footnote{https://www.ffmpeg.org/. Also available as a package in Ubuntu 16.}.
+\item MIT Language Modeling Toolkit~\footnote{https://github.com/mitlm/mitlm}: note that this tool is only needed for the script \textit{archimob/simple\_lm.sh}, which contains an example of how to create the language model for decoding.
+\end{itemize}
+
+\subsection{Hardware}
+\label{sec:hardware}
+
+Even though Kaldi can be run on a single machine, with or without a GPU, training and decoding times are largely decreased if a cluster of servers with GPU's is used.
+
+As a minimal configuration, a cluster of five servers is recommended, having each of them a GPU, eight virtual CPU's, and 16~GB of memory. A hard drive of several hundreds of gigabytes should be mounted on the master and shared via NFS with the other nodes.
+
+\subsection{Parallelization}
+\label{sec:parallelization}
+
+If the experiment is going to be run in a cluster of servers, the Kaldi recipe needs either Sun Grid Engine (SGE) or Slurm to be installed as task scheduler. In either case, the parallel environment \textbf{smp} should also be configured in advance, same as anonymous ssh among the nodes.
+
+\section{Reference results}
+\label{sec:reference-results}
+
+In order to give a reference of the performance of the Kaldi based ASR framework on the Archimob corpus, a complete experiment was run, including acoustic models training, lingware compilation, and evaluation. Part of the available annotated Archimob programs were partitioned into two independent sets:
+
+\begin{itemize}
+\item Training set: programs for acoustic model training and lingware generation.
+\item Testing set: programs for decoding.
+\end{itemize}
+
+Table~\ref{tab:performance-statistics} collects the performance statistics of the evaluation, with the partitions shown in Table~\ref{tab:reference-sets}.
+
+\begin{table}[htb!]
+  \scriptsize
+  \centering
+  \begin{tabular}{|l|l|l|l|l|l|}
+    \hline
+    Total words & Errors & Substitutions & Insertions & Deletions & WER \\
+    \hline \hline
+    22675 & 17052 & 12518 (55.21\%) & 980 (4.32\%) & 3554 (15.67\%) & \textbf{75.20\%} \\
+    \hline
+  \end{tabular}
+  \caption{Performance statistics}
+  \label{tab:performance-statistics}
+\end{table}
+
+\begin{table}[htb!]
+  \scriptsize
+  \centering
+  \begin{tabular}{|l|l|p{5cm}|}
+    \hline
+    \textbf{Set} & \textbf{Purpose} & \textbf{Files} \\ \hline \hline
+    Training & Acoustic model, language model & 1008, 1044, 1048, 1055, 1063, 1138, 1143, 1147, 1188, 1189, 1195, 1205, 1209, 1224, 1228, 1235, 1240, 1248, 1255, 1259, 1295, 1300 \\ \hline
+    Testing & Decoding reference & 1207, 1270 \\ \hline
+  \end{tabular}
+  \caption{Reference sets}
+  \label{tab:reference-sets}
+\end{table}
+
+
+\subsection{Analysis of the results}
+\label{sec:analysis-results}
+
+The performance obtained in the reference experiment is clearly disappointing, but it is a direct consequence of the peculiarities of the Dieth method chosen for the Archimob transcriptions. Namely:
+
+\begin{itemize}
+  \item Dieth is not a purely phonetic method and it also depends strongly on the subjective impression of the annotators and on the orthographic canonical form for Standard German~\footnote{For example, the length of nasals before a plosive, like in \textbf{suntig} vs. \textbf{sunntig}, or the length of the vowels, like \textbf{schoo} vs. \textbf{scho}.}.
+  \item The Dieth transcriptions are very rich in the sense of representing the actual pronunciation of each word. Not only the phonetic realization is pursued, but also the length of the phones, as mentioned before.
+\end{itemize}
+
+Even though these characteristics are desirable for other purposes, in the current context of automatic speech recognition they bring a number of drawbacks:
+
+\begin{itemize}
+
+  \item The absence of a standard written form for every word creates a lot of sparsity in the training data, even for the small domain of the Archimob documentaries. This affects heavily the quality of the language model, in which the several transcriptions of the same word are actually considered as completely distinct words. As an example, the perplexity of the language model trained in Section~\ref{sec:reference-results} on the independent testset is \textbf{285.801}, much higher than the typical values in this kind of application~\footnote{For limited domain applications, such as Archimob, the language model is designed to have a perplexity around \textbf{100}, or even close to \textbf{200} if the acoustic models are very good.}.
+
+  \item The high percentage of out of vocabulary words in the evaluation: about \textbf{8\%} of the words in the test were not covered by the decoding lexicon. Commercial systems are designed to have a much smaller number of out of vocabulary words, since they have a deep impact in performance~\footnote{Note that an out of vocabulary word usually affects as well the recognition of the surrounding words.}. As a side experiment, decoding was repeated with a language model that included all the available data (both the training and testing partitions from Table~\ref{tab:reference-sets}), and the Word Error Rate dropped down to \textbf{33\%}.
+
+  \item The pronunciations dictionary: the Dieth transcriptions are too rich for automatic speech recognition. For example, the number of different vowels is probably too large, and it should be reduced.
+
+  \item The phone length information included in the transcriptions cannot be modeled properly with the current technology. The Hidden Markov Models used to represent each phonetic model are well known for not predicting duration accurately, and therefore distinctions between words like \textbf{gsii} and \textbf{gsi} are based mainly on the language model probabilities, and not on the acoustics.
+
+  \item Besides the subjective component of all transcriptions, in Archimob there are also inconsistencies in how the guidelines were followed. For example, wrong transcriptions like \textbf{ggsii}.
+
+\end{itemize}
+
+Besides the constraints coming from the transcription methods, there are two other factors that affect the quality negatively:
+
+\begin{itemize}
+\item The limited amount of training data: only \textbf{32 hours} of annotated waveforms is too little to train acoustic models. Unless the application domain is very restricted, at least several hundreds of hours are needed.
+\item The specific handling of hesitations in the current framework: during training, hesitations are mapped to the speech general model; and during decoding, they are just deleted from the references, since they usually do not have semantic value. This decision causes that, more than likely, every test utterance with a hesitation is decoded with some error.
+\end{itemize}
+
+Table~\ref{tab:substitutions-evaluation} shows a subset of the substitution errors in the evaluation. As seen, most of them would not really be considered errors if some kind of normalized written form were available.
+
+\begin{table}[htb!]
+  \scriptsize
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    Reference & Hypothesis & Number \\
+    \hline \hline
+    gsii & gsi & 99 \\
+    dän & dänn & 88 \\
+    gsìì & gsi & 62 \\
+    ghaa & gha & 60 \\
+    gsii & ggsii & 50 \\
+    daas & das & 39 \\
+    daa & da & 37 \\
+    wäiss & waiss & 30 \\
+    si & sii & 24 \\
+    gsäit & ggsait & 22 \\
+    choo & cho & 20 \\
+    gsìì & ggsii & 18 \\
+    gsäit & gsait & 18 \\
+    \hline
+  \end{tabular}
+  \caption{Example of substitution errors during the evaluation}
+  \label{tab:substitutions-evaluation}
+\end{table}
+
+% End of the document.
+\end{document}

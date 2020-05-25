@@ -1,0 +1,32 @@
+ch	ch
+sch	sch
+tsch	tcsh, z ch
+pf	pf
+ng	ng
+ph	ph
+th	th
+ts	z
+tz	z
+gg	gg
+v	f
+aa	a
+ãã	ã
+ee	e
+èè	è
+ẽẽ	ẽ
+ii	i
+ìì	ì
+oo	o
+òò	ò
+õõ	õ
+uu	u
+ùù	ù
+ää	ä
+öö	ö
+üü	ü
+ai	ai
+äi	äi
+au	au
+äu	äu
+ei	ei
+y	i, ü
