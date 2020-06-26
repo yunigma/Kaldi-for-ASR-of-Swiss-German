@@ -1,13 +1,16 @@
 # Description:
 
 The folder contains the shared code base for the master's projects (Iuliia Nigmatulina and Tannon Kew) focusing on ASR for Swiss German.
+
+The Iuliia's thesis can be found under the link: [Acoustic modelling for Swiss German ASR](https://drive.switch.ch/index.php/apps/files/?dir=/&fileid=682773084#pdfviewer)
+
 The scripts are an implementation of a basic ASR framework based on Kaldi and were originally developed by Spitch AG, with the following functionality:
 
   * Neural networks acoustic model training.
   * WFST lingware compilation.
   * Evaluation.
 
-The Kaldi recipe egs/wsj/s5 (commit 8cc5c8b32a49f8d963702c6be681dcf5a55eeb2e) was used as reference.
+The Kaldi (version 5.5.) recipe egs/wsj/s5 (commit 8cc5c8b32a49f8d963702c6be681dcf5a55eeb2e) was used as reference. For the TDNN acoustic model, the egs/wsj/s5/local/chain/ recipe was used.
 
 # Main scripts:
 
