@@ -2,7 +2,7 @@
 
 The folder contains the shared code base for the master's projects (Iuliia Nigmatulina and Tannon Kew) focusing on ASR for Swiss German.
 
-The Iuliia's thesis can be found under the link: [Acoustic modelling for Swiss German ASR](https://drive.switch.ch/index.php/apps/files/?dir=/&fileid=682773084#pdfviewer)
+The Iuliia's thesis can be found under the link: [Acoustic modelling for Swiss German ASR](https://drive.switch.ch/index.php/s/QG0RRMWxJuekNkA)
 
 The scripts are an implementation of a basic ASR framework based on Kaldi and were originally developed by Spitch AG, with the following functionality:
 
