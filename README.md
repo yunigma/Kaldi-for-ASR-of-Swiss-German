@@ -145,7 +145,7 @@ Running example with approximate cmds:
       $data/audio/chunked_wav_files \
       $exp/models/eval/nnet_disc/dev \
       "orig" \
-      $data/lexicon.txt
+      $data/lexicons/lexicon.txt
     ```
 
     3.2. Decoding with the NNET models
@@ -159,7 +159,7 @@ Running example with approximate cmds:
       $data/audio/chunked_wav_files \
       $exp/models/eval/nnet_disc/dev \
       "orig" \
-      $data/lexicon.txt
+      $data/lexicons/lexicon.txt
     ```
 
     3.3. Decodes with the TDNN model
