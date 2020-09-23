@@ -31,9 +31,10 @@ export LC_ALL=C # from compile_lingware.sh
 # . parse_options.sh || exit 1;
 
 # Relevant for decoding
-num_jobs=32  # Number of jobs for parallel processing
+num_jobs=69  # Number of jobs for parallel processing
 spn_word='<SPOKEN_NOISE>'
 sil_word='<SIL_WORD>'
+nsn_word='<NOISE>'
 
 
 #####################################
@@ -43,6 +44,8 @@ do_compile_graph=1
 do_data_prep=1
 do_feature_extraction=1
 do_decoding=1
+do_f1_scoring=0
+do_wer_flex_scoring=0
 
 
 echo "$0 $@"  # Print the command line for logging
@@ -59,6 +62,9 @@ dev_csv=$4 # dev csv for decoding
 wav_dir=$5 # audio files for decoding
 output_dir=$6 # can be shared between compile and decode
 transcription=${7:-"orig"}
+scoring_opts=${8:-"--min-lmwt 7 --max-lmwt 17"}
+n2d_mapping=${9:-"/mnt/tannon/corpus_data/norm2dieth.json"}
+vocabulary=${10:-''}  # <-- lexicon
 
 echo "$transcription"
 
@@ -114,35 +120,56 @@ START_TIME=$(date +%s) # record time of operations
 
 if [[ $do_compile_graph -ne 0 ]]; then
 
-    # # Generate the lexicon (text version):
-    # echo ""
-    # echo "#########################################"
-    # echo "### BEGIN: GENERATE LEXICON $lexicon ###"
-    # echo "#########################################"
-    # echo ""
-    #
-    # archimob/create_simple_lexicon.py \
-    #   -v $vocabulary \
-    #   -c $GRAPHEMIC_CLUSTERS \
-    #   -o $lexicon
-    #
-    # [[ $? -ne 0 ]] && echo -e "\n\tERROR: calling create_simple_lexicon.py\n" && exit 1
+    if [[ ! -z $vocabulary ]]; then
 
-    # Add to the lexicon the mapping for the silence word:
-    # echo -e "$SIL_WORD SIL\n$SPOKEN_NOISE_WORD SPN" | cat - $lexicon | sort -o $lexicon
+        # Generate the lexicon fst:
+        # Instead of generating a lexicon again from scratch, we copy the one
+        # created in train_AM.sh.
 
-    # copy lexicon.txt nonsilence_phones.txt optional_silence.txt  silence_phones.txt
-    # to out_dir/tmp/lexicon
+        lexicon="$lexicon_tmp/lexicon.txt"
 
-    # Generate the lexicon fst:
+        # Generate the lexicon (text version):
+        echo ""
+        echo "###############################"
+        echo "### BEGIN: GENERATE LEXICON ###"
+        echo "###############################"
+        echo ""
 
-    for f in lexicon.txt nonsilence_phones.txt optional_silence.txt silence_phones.txt; do
-        [[ ! -e $am_ling_dir/$f ]] && echo -e "\n\tERROR: missing $f in $am_ling_dir\n" && exit 1
-        cp $am_ling_dir/$f $lexicon_tmp/
-    done
+        # python3 archimob/create_simple_lexicon.py \
+        #   -v $vocabulary \
+        #   -c $GRAPHEMIC_CLUSTERS \
+        #   -o $lexicon
 
-    # cp $lexicon $lexicon_tmp/lexicon.txt
-    # rm $lexicon_tmp/lexiconp.txt &> /dev/null
+        archimob/create_simple_lexicon_2.py \
+            -v $vocabulary \
+            -c $GRAPHEMIC_CLUSTERS \
+            -o $lexicon
+
+        [[ $? -ne 0 ]] && echo -e "\n\tERROR: calling create_lexicon.py\n" && exit 1
+
+        # Add to the lexicon the mapping for the silence word:
+        echo -e "$NOISE_WORD NSN\n$SIL_WORD SIL\n$SPOKEN_NOISE_WORD SPN\n" | cat - $lexicon | \
+            sort | uniq | sort -o $lexicon
+
+        sed -i '/^$/d' $lexicon
+
+        # Generate the lexicon fst:
+        for f in lexicon.txt nonsilence_phones.txt optional_silence.txt silence_phones.txt; do
+            [[ ! -e $am_ling_dir/$f ]] && echo -e "\n\tERROR: missing $f in $am_ling_dir\n" && exit 1
+            cp $am_ling_dir/$f $lexicon_tmp/
+        done
+
+        # cp $lexicon $lexicon_tmp/lexicon.txt
+        rm $lexicon_tmp/lexiconp.txt &> /dev/null
+
+    else
+
+      for f in lexicon.txt nonsilence_phones.txt optional_silence.txt silence_phones.txt; do
+          [[ ! -e $am_ling_dir/$f ]] && echo -e "\n\tERROR: missing $f in $am_ling_dir\n" && exit 1
+          cp $am_ling_dir/$f $lexicon_tmp/
+      done
+
+    fi
 
     CUR_TIME=$(date +%s)
     echo ""
@@ -182,7 +209,6 @@ if [[ $do_compile_graph -ne 0 ]]; then
       $tmp_lang/G.fst
 
     [[ $? -ne 0 ]] && echo -e "\n\tERROR: generating $tmp_lang/G.fst\n" && exit 1
-
 
     set +e # don't exit on error
     fstisstochastic $tmp_lang/G.fst
@@ -231,6 +257,7 @@ if [[ $do_data_prep -ne 0 ]]; then
     # Note the options -f and -p: we are rejecting files with no-relevant-speech or
     # overlapping speech; also, Archimob markers (hesitations, coughing, ...) are
     # mapped to less specific classes (see process_archimob.csv.py)
+
     # echo "Processing $dev_csv:"
     archimob/process_archimob_csv.py \
       -i $dev_csv \
@@ -238,8 +265,9 @@ if [[ $do_data_prep -ne 0 ]]; then
       -f \
       -p \
       -t $dev_transcriptions \
-      -s $spn_word \
-      -n $sil_word \
+      --spn-word $spn_word \
+      --sil-word $sil_word \
+      --nsn-word $nsn_word \
       -o $wav_lst
 
     [[ $? -ne 0 ]] && echo -e "\n\tERROR: calling process_archimob_csv.py\n" && exit 1
@@ -331,8 +359,8 @@ if [[ $do_decoding -ne 0 ]]; then
     [[ $? -ne 0 ]] && echo -e "\n\tERROR: during decoding\n" && exit 1
 
     # Copy the results to the output folder:
-    # cp $decode_dir/scoring_kaldi/best_wer $output_dir
-    # cp -r $decode_dir/scoring_kaldi/wer_details $output_dir/
+    cp $decode_dir/scoring_kaldi/best_wer $output_dir
+    cp -r $decode_dir/scoring_kaldi/wer_details $output_dir/
 
 fi
 

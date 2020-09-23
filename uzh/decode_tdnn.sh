@@ -6,23 +6,18 @@
 # '''
 
 
-stage=3
-nj=69
-# test_set="/mnt/iuliia/models/archimob_r2/scores/test/nnet_disc2k10k/lang"
-# test_set="/mnt/iuliia/models/archimob_r2/scores/test/schawinski/nnet_disc2k10k/lang"
-# test_set="/mnt/iuliia/models/archimob_r2/norm_models/eval/tri_mmi/test/lang"
-test_set=
-wav_dir="/mnt/SWISSTEXT2020/SwissText2020/test_data/clips"
+stage=0
+nj=32
+test_set="/mnt/VariDial2019/model2/eval/dev/tri_mmi/lang"
+test_affix=dev
 
-# Affix: dev, test, schawinski
-test_affix=test
+# gmm_scr="/mnt/iuliia/models/archimob_r2/models/models/tri_mmi/ali"
+model_dir="/mnt/VariDial2019/model2/models/ivector"
 
-# LM: dieth90k, norm80K, thresh2, base
-lmtype=pruned
-
-gmm_scr="/mnt/SWISSTEXT2020/model/models/tri_mmi/ali"
-model_dir="/mnt/SWISSTEXT2020/model/models/ivector"
-
+# lm="/mnt/VariDial2019/lms/dieth_90000_open_mkn3.arpa"
+lm="/mnt/VariDial2019/lms/lm_am.arpa"
+# lmtype=dieth90k
+lmtype=simpleLM
 
 . ./cmd.sh
 . ./path.sh
@@ -45,18 +40,10 @@ chunk_width=140,100,160
 if [ $stage -le 1 ]; then
     echo "$0: creating high-resolution MFCC features"
 
-    if [[ $test_set -ne 0 ]]; then
-        utils/copy_data_dir.sh $test_set $data/${test_affix}_set_hires
-    else
-        archimob/create_secondary_files.py \
-        -w $wav_dir \
-        -o $data/${test_affix}_set_hires \
-        test
-    fi
+    utils/copy_data_dir.sh $test_set $data/${test_affix}_set_hires
 
     steps/make_mfcc.sh --nj $nj --mfcc-config conf/mfcc_hires.conf \
     --cmd "$train_cmd" $data/${test_affix}_set_hires
-
     steps/compute_cmvn_stats.sh $data/${test_affix}_set_hires
     utils/fix_data_dir.sh $data/${test_affix}_set_hires
 
@@ -66,6 +53,7 @@ if [ $stage -le 2 ]; then
     # Extract iVectors for the test data, but in this case we don't need the speed
     # perturbation (sp).
     nspk=$(wc -l <$data/${test_affix}_set_hires/spk2utt)
+    # nspk=133
     steps/online/nnet2/extract_ivectors_online.sh --cmd "$train_cmd" --nj "${nspk}" \
     $data/${test_affix}_set_hires $exp/nnet3${nnet3_affix}/extractor \
     $exp/nnet3${nnet3_affix}/ivectors_${test_affix}_set_hires
@@ -73,13 +61,13 @@ fi
 
 if [ $stage -le 3 ]; then
   frames_per_chunk=$(echo $chunk_width | cut -d, -f1)
-  rm $dir/.error 2>/$dev/null || true
+  rm $dir/.error 2>/dev/null || true
 
   # Test data
     nspk=$(wc -l <$data/${test_affix}_set_hires/spk2utt)
     # for lmtype in tgpr bd_tgpr; do
-    # for lmtype in lmtype; do
-    uzh/decode_nnet3_wer_cer.sh \
+    for lmtype in $lmtype; do
+      uzh/decode_nnet3_wer_cer.sh \
         --acwt 1.0 --post-decode-acwt 10.0 \
         --extra-left-context 0 --extra-right-context 0 \
         --extra-left-context-initial 0 \
@@ -90,6 +78,6 @@ if [ $stage -le 3 ]; then
         $tree_dir/graph_${lmtype} \
         $data/${test_affix}_set_hires \
         ${dir}/decode_${lmtype}_${test_affix} || exit 1
-    # done
+    done
 
 fi

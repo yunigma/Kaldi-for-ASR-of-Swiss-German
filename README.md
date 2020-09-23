@@ -99,7 +99,7 @@ Running example with approximate cmds:
     python ./archimob/split_data.py \
       -i $data/processed/archimob.csv \
       -o $data/processed \
-      -t $data/meta_info/test_set.json
+      -t $data/meta/testset_utterances.json
     ```
 
     <!-- for train:
@@ -132,9 +132,23 @@ Running example with approximate cmds:
         $data/lexicons/lexicon.txt
     ```
 
-3. Decoding
+3. Decoding (Makes decoding graph and decodes)
 
-    3.1. Makes decoding graph and decodes
+    3.1. Decoding with the GMM models
+    ```
+    nohup \
+      ./compile_decode_gmm.sh \
+      $data/lms/language_model.arpa \
+      $exp/models/ \
+      $exp/models/discriminative/nnet_disc \
+      $data/processed/dev.csv \
+      $data/audio/chunked_wav_files \
+      $exp/models/eval/nnet_disc/dev \
+      "orig" \
+      $data/lexicon.txt
+    ```
+
+    3.2. Decoding with the NNET models
     ```
     nohup \
       ./compile_decode_nnet.sh \
@@ -144,14 +158,19 @@ Running example with approximate cmds:
       $data/processed/dev.csv \
       $data/audio/chunked_wav_files \
       $exp/models/eval/nnet_disc/dev \
-      "orig"
+      "orig" \
+      $data/lexicon.txt
     ```
 
-    3.2. Decodes with the TDNN model
+    3.3. Decodes with the TDNN model
     ```
     uzh/decode_tdnn.sh \
       --test-set "$exp/models/eval/test/nnet_disc/lang" \
-      --test-affix "test_schawinski"
+      --test-affix "test_label" \
+      --lm "$data/lms/language_model.arpa" \
+      --lmtype "lm_name" \
+      --model_dir "$exp/models/ivector" \
+      --wav_dir "$data/audio/chunked_wav_files"
     ```
 
 

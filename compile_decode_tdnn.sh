@@ -64,8 +64,7 @@ output_dir=$6 # can be shared between compile and decode
 transcription=${7:-"orig"}
 scoring_opts=${8:-"--min-lmwt 7 --max-lmwt 17"}
 n2d_mapping=${9:-"/mnt/tannon/corpus_data/norm2dieth.json"}
-vocabulary=${10:-''}
-# n2d_mapping=${8:-""}
+vocabulary=${10:-''}  # <-- lexicon
 
 echo "$transcription"
 
@@ -351,11 +350,13 @@ if [[ $do_decoding -ne 0 ]]; then
     echo ""
 
     rm -rf $decode_dir/*
-    uzh/decode_nnet_wer_cer.sh --cmd "$decode_cmd" --nj $num_jobs \
-        $output_dir \
-        $lang_dir \
-        $decode_dir \
-        $model_dir
+    uzh/decode_tdnn.sh --stage 0 --nj $num_jobs \
+        --test-set "$exp/models/eval/test/nnet_disc/lang" \
+        --test-affix "test_label" \
+        --lm "$data/lms/language_model.arpa" \
+        --lmtype "lm_name" \
+        --model-dir "$exp/models/ivector" \
+        --wav-dir "$data/audio/chunked_wav_files"
 
     [[ $? -ne 0 ]] && echo -e "\n\tERROR: during decoding\n" && exit 1
 
