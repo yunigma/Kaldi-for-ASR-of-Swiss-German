@@ -6,7 +6,8 @@
 # This script does decoding with a neural-net.
 
 # Begin configuration section.
-stage=3
+stage=1
+stop_stage=
 nj=4 # number of decoding jobs.
 acwt=0.1  # Just a default value, used for adaptation and beam-pruning..
 post_decode_acwt=1.0  # can be used in 'chain' systems to scale acoustics by 10 so the
@@ -25,6 +26,7 @@ use_gpu=false # If true, will use a GPU, with nnet3-latgen-faster-batch.
               # number, e.g. 20 if you have that many free CPU slots on a GPU
               # node, and to use a small number of jobs.
 scoring_opts=
+only_audio=
 skip_diagnostics=false
 skip_scoring=false
 extra_left_context=0
@@ -147,9 +149,23 @@ if [ $stage -le 2 ]; then
 fi
 
 
+if [ $stage -le 3 ]; then
+  if ! -z $only_audio ; then
+    [ ! -x uzh/predict.sh ] && \
+      echo "Not scoring because uzh/predict.sh does not exist or not executable." && exit 1;
+    [ "$iter" != "final" ] && iter_opt="--iter $iter"
+    uzh/predict.sh $scoring_opts --cmd "$cmd" \
+    $data \
+    $graphdir \
+    $dir
+    echo -e "\n### Predictions are done ###"
+  fi
+fi
+
+
 # The output of this script is the files "lat.*.gz"-- we'll rescore this at
 # different acoustic scales to get the final output.
-if [ $stage -le 3 ]; then
+if [ $stage -le 4 ] && [ $stop_stage -ne 4 ]; then
   if ! $skip_scoring ; then
     [ ! -x uzh/score.sh ] && \
       echo "Not scoring because uzh/score.sh does not exist or not executable." && exit 1;

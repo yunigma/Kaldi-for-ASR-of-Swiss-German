@@ -169,9 +169,17 @@ Running example with approximate cmds:
       --test-affix "test_label" \
       --lm "$data/lms/language_model.arpa" \
       --lmtype "lm_name" \
-      --model_dir "$exp/models/ivector" \
-      --wav_dir "$data/audio/chunked_wav_files"
+      --model-dir "$exp/models/ivector" \
+      --wav-dir "$data/audio/chunked_wav_files"
     ```
+
+4. Prediction with audio recodings only
+    ```
+    ./transcribe_audio.sh \
+        --model-dir "$exp/models/ivector" \
+        --audio-dir "$data/audios" \
+        --audio-extension "wav" \
+        --test-affix "test1"
 
 
 ## Language Modeling
