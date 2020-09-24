@@ -173,7 +173,7 @@ Running example with approximate cmds:
       --wav-dir "$data/audio/chunked_wav_files"
     ```
 
-4. Prediction with audio recodings only
+4. Prediction without scoring; when only audios are given
     ```
     ./transcribe_audio.sh \
         --model-dir "$exp/models/ivector" \
